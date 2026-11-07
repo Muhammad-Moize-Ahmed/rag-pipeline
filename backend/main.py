@@ -33,7 +33,7 @@ HTML_PATH = BASE_DIR / "frontend" / "index.html"
 # Embeddings use chromadb's bundled ONNX build of all-MiniLM-L6-v2 (no torch),
 # which keeps memory well under Render's 512MB limit.
 LLM_BASE_URL = os.getenv("BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/")
-LLM_MODEL = os.getenv("LLM_MODEL", "gemini-2.5-flash")
+LLM_MODEL = os.getenv("LLM_MODEL", "gemini-3.5-flash")
 LLM_API_KEY = os.getenv("LLM_API_KEY", "")
 
 EMBED_BATCH = 4
