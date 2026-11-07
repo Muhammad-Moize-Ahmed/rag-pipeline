@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Course Intelligence Assistant</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .chat-scroll::-webkit-scrollbar { width: 5px; }
+    .chat-scroll::-webkit-scrollbar-track { background: transparent; }
+    .chat-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased">
+
+  <!-- Top Navigation -->
+  <header class="border-b border-slate-800 bg-slate-900/60 backdrop-blur sticky top-0 z-50 px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="h-9 w-9 rounded-xl bg-indigo-600/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400 font-bold text-lg">
+        AI
+      </div>
+      <div>
+        <h1 class="text-base font-semibold leading-tight text-white">Course QA Assistant</h1>
+        <p class="text-xs text-slate-400">Strict Grounded RAG Pipeline</p>
+      </div>
+    </div>
+    
+    <div class="flex items-center gap-4">
+      <div id="backend-status" class="flex items-center gap-2 text-xs text-slate-400 bg-slate-800/80 px-3 py-1.5 rounded-full border border-slate-700/60">
+        <span class="inline-block h-2 w-2 rounded-full bg-amber-400 animate-pulse" id="status-indicator"></span>
+        <span id="status-label">Checking Backend...</span>
+      </div>
+      <button onclick="triggerIngest()" class="text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded-lg transition-colors">
+        Re-Index PDFs
+      </button>
+    </div>
+  </header>
+
+  <!-- Chat Frame -->
+  <main class="flex-1 max-w-4xl w-full mx-auto p-4 md:p-6 flex flex-col justify-between overflow-hidden">
+    
+    <!-- Messages Stream -->
+    <div id="chat-container" class="chat-scroll flex-1 overflow-y-auto space-y-5 pr-2 pb-6">
+      
+      <!-- Assistant Welcome -->
+      <div class="flex items-start gap-3">
+        <div class="h-8 w-8 rounded-lg bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-xs text-indigo-400 font-bold shrink-0 mt-1">
+          BOT
+        </div>
+        <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl rounded-tl-sm text-sm text-slate-300 max-w-2xl shadow-sm leading-relaxed">
+          Hello! I am your course study partner. Ask me any question about your enrolled course notes, slides, or chapters. I answer strictly based on course material and cite the exact document and page number.
+        </div>
+      </div>
+
+    </div>
+
+    <!-- User Input Panel -->
+    <div class="pt-2">
+      <form id="chat-form" class="relative bg-slate-900 border border-slate-800 rounded-2xl shadow-xl focus-within:border-indigo-500 transition-colors">
+        <textarea 
+          id="query-input" 
+          rows="2" 
+          placeholder="Ask a question (e.g., 'Describe the TCP three-way handshake')..." 
+          class="w-full bg-transparent text-sm text-slate-200 placeholder-slate-500 px-4 py-3.5 pr-28 resize-none focus:outline-none"
+        ></textarea>
+        
+        <div class="absolute right-3 bottom-3 flex items-center gap-2">
+          <button 
+            type="submit" 
+            id="send-btn"
+            class="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all shadow-md shadow-indigo-600/20 flex items-center gap-1.5"
+          >
+            <span>Ask</span>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3.5 h-3.5">
+              <path d="M3.105 2.289a.75.75 0 00-.826.95l1.414 4.925A1.5 1.5 0 005.135 9.25h6.115a.75.75 0 010 1.5H5.135a1.5 1.5 0 00-1.442 1.086l-1.414 4.926a.75.75 0 00.826.95 28.896 28.896 0 0015.293-7.154.75.75 0 000-1.115A28.897 28.897 0 003.105 2.289z" />
+            </svg>
+          </button>
+        </div>
+      </form>
+      <p class="text-[11px] text-slate-500 text-center mt-2">Shift + Enter for new line. Uncovered out-of-syllabus queries are automatically guarded.</p>
+    </div>
+
+  </main>
+
+  <script>
+    const API_BASE = window.location.origin;
+    const chatContainer = document.getElementById("chat-container");
+    const queryInput = document.getElementById("query-input");
+    const chatForm = document.getElementById("chat-form");
+    const sendBtn = document.getElementById("send-btn");
+    const statusIndicator = document.getElementById("status-indicator");
+    const statusLabel = document.getElementById("status-label");
+
+    // Check Backend Status
+    async function checkHealth() {
+      try {
+        const res = await fetch(`${API_BASE}/health`);
+        const data = await res.json();
+        if (data.status === "healthy") {
+          statusIndicator.className = "inline-block h-2 w-2 rounded-full bg-emerald-400";
+          statusLabel.textContent = `Online (${data.docs_in_index} chunks)`;
+        }
+      } catch (e) {
+        statusIndicator.className = "inline-block h-2 w-2 rounded-full bg-rose-400";
+        statusLabel.textContent = "Offline (Check main.py)";
+      }
+    }
+    checkHealth();
+    setInterval(checkHealth, 15000);
+
+    // Ingest Handler
+    async function triggerIngest() {
+      const btn = event.target;
+      const originalText = btn.textContent;
+      btn.textContent = "Indexing...";
+      btn.disabled = true;
+      try {
+        const res = await fetch(`${API_BASE}/ingest`, { method: "POST" });
+        const data = await res.json();
+        alert(`Success! Indexed ${data.total_chunks_indexed || 0} chunks.`);
+        checkHealth();
+      } catch (err) {
+        alert("Failed to ingest PDFs. Check backend logs.");
+      } finally {
+        btn.textContent = originalText;
+        btn.disabled = false;
+      }
+    }
+
+    function appendUserMessage(text) {
+      const msg = document.createElement("div");
+      msg.className = "flex items-start justify-end gap-3";
+      msg.innerHTML = `
+        <div class="bg-indigo-600 text-white p-4 rounded-2xl rounded-tr-sm text-sm max-w-2xl leading-relaxed shadow-sm">
+          ${escapeHtml(text)}
+        </div>
+      `;
+      chatContainer.appendChild(msg);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    function appendLoadingBubble() {
+      const msg = document.createElement("div");
+      msg.id = "loading-bubble";
+      msg.className = "flex items-start gap-3";
+      msg.innerHTML = `
+        <div class="h-8 w-8 rounded-lg bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-xs text-indigo-400 font-bold shrink-0 mt-1">
+          BOT
+        </div>
+        <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl rounded-tl-sm text-sm text-slate-400 flex items-center gap-2">
+          <span class="inline-block w-2 h-2 rounded-full bg-slate-500 animate-bounce"></span>
+          <span class="inline-block w-2 h-2 rounded-full bg-slate-500 animate-bounce [animation-delay:0.2s]"></span>
+          <span class="inline-block w-2 h-2 rounded-full bg-slate-500 animate-bounce [animation-delay:0.4s]"></span>
+          <span class="ml-1 text-xs">Searching course docs...</span>
+        </div>
+      `;
+      chatContainer.appendChild(msg);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+      return msg;
+    }
+
+    function appendAssistantMessage(data) {
+      const isUncovered = !data.covered;
+      const msg = document.createElement("div");
+      msg.className = "flex items-start gap-3";
+
+      let sourcesHtml = "";
+      if (data.sources && data.sources.length > 0) {
+        sourcesHtml = `
+          <div class="mt-3 pt-3 border-t border-slate-800 flex flex-wrap gap-2 items-center">
+            <span class="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Citations:</span>
+            ${data.sources.map(s => `
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-slate-800/80 text-indigo-300 border border-indigo-500/20">
+                📄 ${escapeHtml(s.doc)} <span class="text-slate-400 font-normal">p.${s.page}</span>
+              </span>
+            `).join("")}
+          </div>
+        `;
+      }
+
+      msg.innerHTML = `
+        <div class="h-8 w-8 rounded-lg ${isUncovered ? 'bg-amber-500/20 border-amber-500/30 text-amber-400' : 'bg-indigo-600/20 border-indigo-500/30 text-indigo-400'} border flex items-center justify-center text-xs font-bold shrink-0 mt-1">
+          BOT
+        </div>
+        <div class="bg-slate-900 border ${isUncovered ? 'border-amber-500/30' : 'border-slate-800'} p-4 rounded-2xl rounded-tl-sm text-sm text-slate-200 max-w-2xl leading-relaxed shadow-sm">
+          <p class="${isUncovered ? 'text-amber-200/90' : 'text-slate-200'}">${escapeHtml(data.answer)}</p>
+          ${sourcesHtml}
+        </div>
+      `;
+      chatContainer.appendChild(msg);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    function escapeHtml(string) {
+      const div = document.createElement("div");
+      div.innerText = string;
+      return div.innerHTML;
+    }
+
+    chatForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const question = queryInput.value.trim();
+      if (!question) return;
+
+      appendUserMessage(question);
+      queryInput.value = "";
+      sendBtn.disabled = true;
+
+      const loader = appendLoadingBubble();
+
+      try {
+        const response = await fetch(`${API_BASE}/query`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question: question, top_k: 4 })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Server returned ${response.status}`);
+        }
+
+        const data = await response.json();
+        loader.remove();
+        appendAssistantMessage(data);
+      } catch (err) {
+        loader.remove();
+        appendAssistantMessage({
+          answer: "Unable to connect to the backend server. Please verify FastAPI is running.",
+          covered: false,
+          sources: []
+        });
+      } finally {
+        sendBtn.disabled = false;
+        queryInput.focus();
+      }
+    });
+
+    queryInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        chatForm.requestSubmit();
+      }
+    });
+  </script>
+</body>
+</html>

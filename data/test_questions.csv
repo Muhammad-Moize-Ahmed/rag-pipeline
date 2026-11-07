@@ -1,0 +1,27 @@
+question,expected_doc,expected_page
+Who created Python and when was it first released?,CS101_Python_Programming.pdf,1
+What is the difference between break and continue in a loop?,CS101_Python_Programming.pdf,2
+What is the LEGB rule?,CS101_Python_Programming.pdf,3
+What does the finally block do in exception handling?,CS101_Python_Programming.pdf,5
+What is Big-O notation and which growth rates are common?,CS201_Data_Structures_and_Algorithms.pdf,1
+Why is merge sort stable and what is its time complexity?,CS201_Data_Structures_and_Algorithms.pdf,5
+When does Dijkstra's algorithm fail?,CS201_Data_Structures_and_Algorithms.pdf,6
+What are the three depth-first traversals of a binary tree?,CS201_Data_Structures_and_Algorithms.pdf,4
+Explain the ACID properties.,CS301_Database_Systems.pdf,5
+What is the difference between WHERE and HAVING?,CS301_Database_Systems.pdf,3
+What is 3NF?,CS301_Database_Systems.pdf,4
+What is the downside of adding indexes?,CS301_Database_Systems.pdf,6
+What is the difference between precision and recall?,CS401_Machine_Learning_Basics.pdf,3
+How does k-means clustering work?,CS401_Machine_Learning_Basics.pdf,5
+What is the difference between L1 and L2 regularisation?,CS401_Machine_Learning_Basics.pdf,4
+What happens if the learning rate is too large?,CS401_Machine_Learning_Basics.pdf,2
+Describe the TCP three-way handshake.,CS302_Computer_Networks.pdf,3
+How many usable hosts are in a /24 network?,CS302_Computer_Networks.pdf,2
+What does the HTTP status code 404 mean?,CS302_Computer_Networks.pdf,4
+Which routing protocol uses Dijkstra's algorithm?,CS302_Computer_Networks.pdf,5
+Who won the FIFA World Cup in 2018?,,
+What is the capital of Australia?,,
+How do I bake a chocolate cake?,,
+Explain how blockchain consensus works.,,
+What are the principles of Islamic banking?,,
+How do I write a React component with hooks?,,

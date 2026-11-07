@@ -1,0 +1,20 @@
+# Web Framework & Server
+fastapi>=0.110.0
+uvicorn[standard]>=0.28.0
+pydantic>=2.6.0
+
+# Vector Database & Embeddings
+sentence-transformers>=2.5.0
+chromadb>=0.4.24
+torch>=2.2.0
+
+# PDF Processing
+pypdf>=4.1.0
+
+# LLM Client (OpenAI SDK for Gemini / OpenAI / Groq / Ollama endpoints)
+openai>=1.14.0
+
+# Jupyter & Testing Utilities
+ipywidgets>=8.1.0
+tqdm>=4.66.0
+python-multipart>=0.0.9
