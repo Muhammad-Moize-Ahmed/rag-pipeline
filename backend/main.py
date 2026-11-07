@@ -10,10 +10,15 @@ from sentence_transformers import SentenceTransformer
 import chromadb
 from openai import OpenAI
 from pypdf import PdfReader
+from dotenv import load_dotenv
 
 # --- Absolute Path Configuration ---
 # BASE_DIR resolves to the root project folder: /.../class_project
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load variables from the project-root .env (works regardless of the current directory).
+# Variables already set in the shell take precedence over the file.
+load_dotenv(BASE_DIR / ".env")
 
 CHROMA_PATH = str(BASE_DIR / "chroma_db")
 PDF_DIR = BASE_DIR / "data" / "pdfs"
@@ -24,6 +29,9 @@ MODEL_NAME = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
 LLM_BASE_URL = os.getenv("BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/")
 LLM_MODEL = os.getenv("LLM_MODEL", "gemini-3.5-flash")
 LLM_API_KEY = os.getenv("LLM_API_KEY", "")
+
+if not LLM_API_KEY:
+    print("WARNING: LLM_API_KEY is not set. Add it to the .env file in the project root.")
 
 MIN_SCORE = 0.25
 NOT_COVERED_MSG = "Sorry, this question is not covered in the course material I have."

@@ -13,6 +13,7 @@ pypdf>=4.1.0
 
 # LLM Client (OpenAI SDK for Gemini / OpenAI / Groq / Ollama endpoints)
 openai>=1.14.0
+python-dotenv>=1.0.0
 
 # Jupyter & Testing Utilities
 ipywidgets>=8.1.0
