@@ -2,37 +2,41 @@ import os
 import re
 from pathlib import Path
 from typing import List, Optional
+
+# --- Memory Optimization for Render 512MB RAM ---
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from sentence_transformers import SentenceTransformer
 import chromadb
+from chromadb.utils.embedding_functions import ONNXMiniLM_L6_V2
 from openai import OpenAI
 from pypdf import PdfReader
 from dotenv import load_dotenv
 
-# --- Absolute Path Configuration ---
-# BASE_DIR resolves to the root project folder: /.../class_project
+# Load local .env if available
+load_dotenv()
+
+# --- Absolute Path Configurations ---
+# BASE_DIR resolves to root folder: class_project
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Load variables from the project-root .env (works regardless of the current directory).
-# Variables already set in the shell take precedence over the file.
-load_dotenv(BASE_DIR / ".env")
-
-CHROMA_PATH = str(BASE_DIR / "chroma_db")
-PDF_DIR = BASE_DIR / "data" / "pdfs"
+CHROMA_PATH = os.getenv("CHROMA_PATH", str(BASE_DIR / "chroma_db"))
+PDF_DIR = Path(os.getenv("PDF_DIR", str(BASE_DIR / "data" / "pdfs")))
 HTML_PATH = BASE_DIR / "frontend" / "index.html"
 
 # --- Model & Prompt Configurations ---
-MODEL_NAME = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
+# Embeddings use chromadb's bundled ONNX build of all-MiniLM-L6-v2 (no torch),
+# which keeps memory well under Render's 512MB limit.
 LLM_BASE_URL = os.getenv("BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/")
-LLM_MODEL = os.getenv("LLM_MODEL", "gemini-3.5-flash")
+LLM_MODEL = os.getenv("LLM_MODEL", "gemini-2.5-flash")
 LLM_API_KEY = os.getenv("LLM_API_KEY", "")
 
-if not LLM_API_KEY:
-    print("WARNING: LLM_API_KEY is not set. Add it to the .env file in the project root.")
-
+EMBED_BATCH = 4
 MIN_SCORE = 0.25
 NOT_COVERED_MSG = "Sorry, this question is not covered in the course material I have."
 
@@ -62,13 +66,16 @@ llm_client = None
 @app.on_event("startup")
 def startup_event():
     global embed_model, chroma_client, collection, llm_client
-    embed_model = SentenceTransformer(MODEL_NAME)
+    embed_model = ONNXMiniLM_L6_V2(preferred_providers=["CPUExecutionProvider"])
     chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
     collection = chroma_client.get_or_create_collection(
         name="course",
         metadata={"hnsw:space": "cosine"}
     )
     llm_client = OpenAI(base_url=LLM_BASE_URL, api_key=LLM_API_KEY or "dummy_key")
+    # Render's disk is ephemeral and chroma_db/ is gitignored, so build the index on boot if empty.
+    if collection.count() == 0 and PDF_DIR.exists():
+        print("Index empty, ingesting PDFs...", ingest_pdfs())
 
 # --- Helper Functions ---
 def chunk_text(text: str, size: int = 800, overlap: int = 150) -> List[str]:
@@ -79,7 +86,7 @@ def chunk_text(text: str, size: int = 800, overlap: int = 150) -> List[str]:
     return chunks
 
 def retrieve(question: str, k: int = 4):
-    q_emb = embed_model.encode([question]).tolist()
+    q_emb = [e.tolist() for e in embed_model([question])]
     r = collection.query(query_embeddings=q_emb, n_results=k)
     
     if not r["documents"] or not r["documents"][0]:
@@ -132,7 +139,6 @@ def query_pipeline(req: QueryRequest):
 
     hits = retrieve(req.question, k=req.top_k)
     
-    # Notebook threshold check: score < 0.25 is rejected as uncovered
     if not hits or hits[0]["score"] < MIN_SCORE:
         return QueryResponse(
             question=req.question,
@@ -212,7 +218,12 @@ def ingest_pdfs():
                 "page": p["page"],
             })
 
-    embeddings = embed_model.encode([c["text"] for c in chunks], show_progress_bar=False).tolist()
+    # Embed in small batches: onnxruntime keeps its peak buffer allocated, so big batches
+    # permanently inflate memory (batch 32 ~580MB vs batch 4 ~270MB).
+    texts = [c["text"] for c in chunks]
+    embeddings = []
+    for i in range(0, len(texts), EMBED_BATCH):
+        embeddings.extend(e.tolist() for e in embed_model(texts[i : i + EMBED_BATCH]))
 
     collection.upsert(
         ids=[c["id"] for c in chunks],
@@ -229,4 +240,5 @@ def ingest_pdfs():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
